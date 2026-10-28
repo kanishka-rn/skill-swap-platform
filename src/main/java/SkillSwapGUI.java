@@ -1,463 +1,622 @@
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTable;
-import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
-import javax.swing.SwingConstants;
-import javax.swing.SwingWorker;
-import javax.swing.table.DefaultTableModel;
 
-/**
- * Main window. Each tab focuses on one task to keep the student workflow clear.
- */
 public class SkillSwapGUI extends JFrame {
-    private static final String[] STUDENT_COLUMNS = {
-            "ID", "Name", "Email", "Teaches", "Wants to learn", "Additional skills"
-    };
 
     private final SkillSwapManager manager = new SkillSwapManager();
-    private final DefaultTableModel allStudentsModel = createTableModel(STUDENT_COLUMNS);
-    private final DefaultTableModel searchResultsModel = createTableModel(STUDENT_COLUMNS);
-    private final DefaultTableModel matchesModel = createTableModel(new String[]{
-            "Student", "Email", "Teaches", "Wants to learn",
-            "Exchange partner", "Partner email"
-    });
-    private final JTable allStudentsTable = createTable(allStudentsModel);
-    private final JTable searchResultsTable = createTable(searchResultsModel);
-    private final JTable matchesTable = createTable(matchesModel);
-    private final JLabel dashboardSummary = new JLabel("Loading student records...");
-    private final JLabel matchesStatus =
-            new JLabel("Select Find compatible exchanges to check for a match.");
 
-    private final JTextField nameField = new JTextField(24);
-    private final JTextField emailField = new JTextField(24);
-    private final JComboBox<String> teachingSkillBox = createSkillBox();
-    private final JComboBox<String> learningSkillBox = createSkillBox();
-    private final JTextField additionalSkillsField = new JTextField(24);
-    private final JComboBox<String> searchSkillBox = createSkillBox();
+    private final Color navy = new Color(29, 78, 137);
+    private final Color blue = new Color(37, 99, 235);
+
+    private final JTextField nameField = new JTextField(20);
+    private final JTextField emailField = new JTextField(20);
+    private final JTextField additionalField = new JTextField(20);
+
+    private final JComboBox<String> teachCombo = createSkillCombo();
+    private final JComboBox<String> learnCombo = createSkillCombo();
+    private final JComboBox<String> searchCombo = createSkillCombo();
+
+    private final JTextField deleteIdField = new JTextField(8);
+
+    private final DefaultTableModel studentModel = new DefaultTableModel(
+            new String[]{"ID", "Name", "Email", "Teach Skill",
+                    "Learn Skill", "Additional Skills"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+
+    private final DefaultTableModel searchModel = new DefaultTableModel(
+            new String[]{"ID", "Name", "Email",
+                    "Teach Skill", "Learn Skill"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+
+    private final DefaultTableModel matchModel = new DefaultTableModel(
+            new String[]{"Student 1", "Teaches", "Learns",
+                    "Student 2", "Teaches", "Learns"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+
+    private JLabel studentCount;
+    private JLabel matchCount;
+    private JLabel statusLabel;
 
     public SkillSwapGUI() {
-        super("Skill Swap Platform");
+
+        setTitle("Skill Swap Platform");
+        setSize(1050, 650);
+        setMinimumSize(new Dimension(850, 550));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(900, 560));
-        setSize(1100, 680);
         setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+
+        add(createHeader(), BorderLayout.NORTH);
+        add(createNavigation(), BorderLayout.WEST);
+        add(createPages(), BorderLayout.CENTER);
+        add(createStatusBar(), BorderLayout.SOUTH);
+
+        refreshDashboard();
+    }
+
+    // Predefined skills, but users can also type their own.
+    private JComboBox<String> createSkillCombo() {
+
+        JComboBox<String> combo = new JComboBox<>(new String[]{
+                "Java", "Python", "C++", "JavaScript",
+                "HTML", "CSS", "Web Design", "Graphic Design",
+                "Photoshop", "Data Science", "Machine Learning",
+                "SQL", "Public Speaking", "Video Editing"
+        });
+
+        combo.setEditable(true);
+        return combo;
+    }
+
+    private JPanel createHeader() {
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(navy);
+        header.setBorder(
+                BorderFactory.createEmptyBorder(18, 22, 18, 22));
+
+        JLabel title = new JLabel("Skill Swap Platform");
+        title.setForeground(Color.WHITE);
+        title.setFont(new Font("SansSerif", Font.BOLD, 25));
+
+        JLabel subtitle = new JLabel(
+                "Learn together. Grow together.");
+        subtitle.setForeground(Color.WHITE);
+
+        JPanel text = new JPanel(new GridLayout(2, 1, 0, 5));
+        text.setOpaque(false);
+        text.add(title);
+        text.add(subtitle);
+
+        header.add(text, BorderLayout.WEST);
+        return header;
+    }
+
+    private JPanel createNavigation() {
+
+        JPanel nav = new JPanel();
+        nav.setLayout(new GridLayout(6, 1, 5, 8));
+        nav.setBackground(new Color(239, 244, 250));
+        nav.setBorder(
+                BorderFactory.createEmptyBorder(15, 10, 15, 10));
+
+        String[] pages = {
+                "Home", "Register Student", "View All Students",
+                "Search Skill", "Find Matches", "Delete Student"
+        };
+
+        for (String page : pages) {
+            JButton button = new JButton(page);
+            button.setFocusPainted(false);
+            button.addActionListener(e -> showPage(page));
+            nav.add(button);
+        }
+
+        nav.setPreferredSize(new Dimension(190, 0));
+        return nav;
+    }
+
+    private JTabbedPane createPages() {
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Dashboard", createDashboardTab());
-        tabs.addTab("Register Student", createRegistrationTab());
-        tabs.addTab("Search Skills", createSearchTab());
-        tabs.addTab("Find Matches", createMatchesTab());
-        tabs.addTab("Manage Students", createManageTab());
-        add(tabs, BorderLayout.CENTER);
 
-        refreshAllViews();
+        tabs.addTab("Home", createHomePage());
+        tabs.addTab("Register", createRegisterPage());
+        tabs.addTab("Students", createStudentPage());
+        tabs.addTab("Search", createSearchPage());
+        tabs.addTab("Matches", createMatchPage());
+        tabs.addTab("Delete", createDeletePage());
+
+        // Navigation buttons select the corresponding tab.
+        navigationTabs = tabs;
+
+        return tabs;
     }
 
-    private JPanel createDashboardTab() {
-        JPanel panel = new JPanel(new BorderLayout(12, 12));
-        panel.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+    private JTabbedPane navigationTabs;
 
-        JLabel title = new JLabel("Welcome to the Skill Swap Platform", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        dashboardSummary.setHorizontalAlignment(SwingConstants.CENTER);
-        dashboardSummary.setFont(dashboardSummary.getFont().deriveFont(16f));
+    private void showPage(String page) {
 
-        JButton refreshButton = new JButton("Refresh dashboard");
-        refreshButton.addActionListener(event -> refreshAllViews());
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        bottom.add(refreshButton);
+        if (navigationTabs == null) {
+            return;
+        }
 
-        panel.add(title, BorderLayout.NORTH);
-        panel.add(dashboardSummary, BorderLayout.CENTER);
-        panel.add(bottom, BorderLayout.SOUTH);
+        String tab = switch (page) {
+            case "Register Student" -> "Register";
+            case "View All Students" -> "Students";
+            case "Search Skill" -> "Search";
+            case "Find Matches" -> "Matches";
+            case "Delete Student" -> "Delete";
+            default -> "Home";
+        };
+
+        navigationTabs.setSelectedIndex(switch (tab) {
+            case "Register" -> 1;
+            case "Students" -> 2;
+            case "Search" -> 3;
+            case "Matches" -> 4;
+            case "Delete" -> 5;
+            default -> 0;
+        });
+
+        if (page.equals("View All Students")) {
+            refreshStudents();
+        } else if (page.equals("Find Matches")) {
+            refreshMatches();
+        } else if (page.equals("Home")) {
+            refreshDashboard();
+        }
+    }
+
+    private JPanel createHomePage() {
+
+        JPanel panel = new JPanel(new GridLayout(5, 1, 10, 10));
+        panel.setBorder(
+                BorderFactory.createEmptyBorder(35, 30, 35, 30));
+
+        JLabel welcome = new JLabel(
+                "Welcome to Skill Swap Platform",
+                SwingConstants.CENTER);
+        welcome.setFont(new Font("SansSerif", Font.BOLD, 23));
+
+        studentCount = new JLabel(
+                "Total Students: 0", SwingConstants.CENTER);
+        matchCount = new JLabel(
+                "Potential Matches: 0", SwingConstants.CENTER);
+
+        panel.add(welcome);
+        panel.add(studentCount);
+        panel.add(matchCount);
+
+        JButton register = new JButton("Register Student");
+        register.addActionListener(e -> showPage("Register Student"));
+
+        JButton view = new JButton("View All Students");
+        view.addActionListener(e -> showPage("View All Students"));
+
+        panel.add(register);
+        panel.add(view);
+
         return panel;
     }
 
-    private JPanel createRegistrationTab() {
+    private JPanel createRegisterPage() {
+
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(24, 32, 24, 32));
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.insets = new Insets(8, 8, 8, 8);
-        constraints.anchor = GridBagConstraints.WEST;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.weightx = 1;
+        panel.setBorder(
+                BorderFactory.createEmptyBorder(20, 25, 20, 25));
 
-        addFormRow(panel, constraints, 0, "Full name:", nameField);
-        addFormRow(panel, constraints, 1, "Email address:", emailField);
-        addFormRow(panel, constraints, 2, "Skill to teach:", teachingSkillBox);
-        addFormRow(panel, constraints, 3, "Skill to learn:", learningSkillBox);
-        addFormRow(panel, constraints, 4, "Additional skills (comma-separated):",
-                additionalSkillsField);
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(9, 8, 9, 8);
+        c.fill = GridBagConstraints.HORIZONTAL;
 
-        JLabel hint = new JLabel("Choose a skill or type a custom one in either skill box.");
-        constraints.gridx = 0;
-        constraints.gridy = 5;
-        constraints.gridwidth = 2;
-        panel.add(hint, constraints);
+        addFormRow(panel, c, 0, "Name:", nameField);
+        addFormRow(panel, c, 1, "Email:", emailField);
+        addFormRow(panel, c, 2, "Skill to Teach:", teachCombo);
+        addFormRow(panel, c, 3, "Skill to Learn:", learnCombo);
+        addFormRow(panel, c, 4,
+                "Additional Skills:", additionalField);
 
-        JButton registerButton = new JButton("Register student");
-        registerButton.addActionListener(event -> registerStudent());
-        constraints.gridy = 6;
-        constraints.anchor = GridBagConstraints.CENTER;
-        panel.add(registerButton, constraints);
+        JLabel hint = new JLabel(
+                "Choose a skill or type your own.");
+        c.gridx = 0;
+        c.gridy = 5;
+        c.gridwidth = 2;
+        panel.add(hint, c);
+
+        JButton register = primaryButton("Register Student");
+        register.addActionListener(e -> registerStudent());
+
+        JButton clear = new JButton("Clear");
+        clear.addActionListener(e -> clearForm());
+
+        JPanel buttons = new JPanel();
+        buttons.add(register);
+        buttons.add(clear);
+
+        c.gridy = 6;
+        panel.add(buttons, c);
+
         return panel;
     }
 
-    private JPanel createSearchTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+    private void addFormRow(
+            JPanel panel, GridBagConstraints c,
+            int row, String label, Component field) {
 
-        JButton searchButton = new JButton("Search");
-        searchButton.addActionListener(event -> searchStudents());
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        controls.add(new JLabel("Students who teach:"));
-        controls.add(searchSkillBox);
-        controls.add(searchButton);
+        c.gridy = row;
+        c.gridwidth = 1;
+        c.gridx = 0;
+        panel.add(new JLabel(label), c);
 
-        panel.add(controls, BorderLayout.NORTH);
-        panel.add(new JScrollPane(searchResultsTable), BorderLayout.CENTER);
+        c.gridx = 1;
+        field.setPreferredSize(new Dimension(280, 30));
+        panel.add(field, c);
+    }
+
+    private JPanel createStudentPage() {
+
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        JTable table = new JTable(studentModel);
+        styleTable(table);
+
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JButton refresh = primaryButton("Refresh Students");
+        refresh.addActionListener(e -> refreshStudents());
+
+        panel.add(refresh, BorderLayout.SOUTH);
         return panel;
     }
 
-    private JPanel createMatchesTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+    private JPanel createSearchPage() {
 
-        JButton refreshButton = new JButton("Find compatible exchanges");
-        refreshButton.addActionListener(event -> refreshMatches());
-        JLabel explanation = new JLabel(
-                "A match is reciprocal: each student teaches the skill the other wants.");
-        JPanel descriptions = new JPanel(new BorderLayout(4, 4));
-        descriptions.add(explanation, BorderLayout.NORTH);
-        descriptions.add(matchesStatus, BorderLayout.SOUTH);
-        JPanel controls = new JPanel(new BorderLayout(8, 8));
-        controls.add(descriptions, BorderLayout.CENTER);
-        controls.add(refreshButton, BorderLayout.EAST);
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        panel.add(controls, BorderLayout.NORTH);
-        panel.add(new JScrollPane(matchesTable), BorderLayout.CENTER);
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(new JLabel("Skill to search:"));
+        top.add(searchCombo);
+
+        JButton search = primaryButton("Search");
+        search.addActionListener(e -> searchStudents());
+        top.add(search);
+
+        JTable table = new JTable(searchModel);
+        styleTable(table);
+
+        panel.add(top, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+
         return panel;
     }
 
-    private JPanel createManageTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+    private JPanel createMatchPage() {
 
-        JButton refreshButton = new JButton("Refresh records");
-        refreshButton.addActionListener(event -> refreshAllViews());
-        JButton deleteButton = new JButton("Delete selected student");
-        deleteButton.addActionListener(event -> deleteSelectedStudent());
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        controls.add(refreshButton);
-        controls.add(deleteButton);
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        panel.add(controls, BorderLayout.NORTH);
-        panel.add(new JScrollPane(allStudentsTable), BorderLayout.CENTER);
+        JTable table = new JTable(matchModel);
+        styleTable(table);
+
+        JButton find = primaryButton("Find Matches");
+        find.addActionListener(e -> refreshMatches());
+
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(find, BorderLayout.SOUTH);
+
         return panel;
+    }
+
+    private JPanel createDeletePage() {
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(
+                BorderFactory.createEmptyBorder(25, 25, 25, 25));
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(10, 10, 10, 10);
+
+        c.gridx = 0;
+        c.gridy = 0;
+        panel.add(new JLabel("Student ID:"), c);
+
+        c.gridx = 1;
+        panel.add(deleteIdField, c);
+
+        JButton delete = new JButton("Delete Student");
+        delete.setBackground(new Color(190, 45, 45));
+        delete.setForeground(Color.WHITE);
+        delete.addActionListener(e -> deleteStudent());
+
+        c.gridx = 0;
+        c.gridy = 1;
+        c.gridwidth = 2;
+        panel.add(delete, c);
+
+        JLabel hint = new JLabel(
+                "Find the ID in the Students tab.");
+        c.gridy = 2;
+        panel.add(hint, c);
+
+        return panel;
+    }
+
+    private JPanel createStatusBar() {
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+        statusLabel = new JLabel("Ready");
+        panel.add(statusLabel, BorderLayout.WEST);
+
+        return panel;
+    }
+
+    private JButton primaryButton(String text) {
+
+        JButton button = new JButton(text);
+        button.setBackground(blue);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+
+        return button;
+    }
+
+    private void styleTable(JTable table) {
+
+        table.setRowHeight(26);
+        table.setAutoCreateRowSorter(true);
+        table.getTableHeader().setReorderingAllowed(false);
+    }
+
+    private String selectedSkill(JComboBox<String> combo) {
+
+        Object value = combo.getEditor().getItem();
+
+        return value == null ? "" : value.toString().trim();
     }
 
     private void registerStudent() {
+
+        String name = nameField.getText().trim();
+        String email = emailField.getText().trim();
+        String teach = selectedSkill(teachCombo);
+        String learn = selectedSkill(learnCombo);
+        String additional = additionalField.getText().trim();
+
+        if (name.isEmpty() || email.isEmpty()
+                || teach.isEmpty() || learn.isEmpty()) {
+
+            showError("Please fill in all required fields.");
+            return;
+        }
+
+        if (!email.matches("^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$")) {
+            showError("Enter a valid email address.");
+            return;
+        }
+
+        if (teach.equalsIgnoreCase(learn)) {
+            showError("Teaching and learning skills must be different.");
+            return;
+        }
+
         try {
-            String name = nameField.getText().trim();
-            String email = emailField.getText().trim();
-            SkillStudent student = new SkillStudent(
-                    0,
-                    name,
-                    email,
-                    selectedSkill(teachingSkillBox, "Skill to teach"),
-                    selectedSkill(learningSkillBox, "Skill to learn"),
-                    additionalSkillsField.getText());
-            runDatabaseTask(() -> {
-                manager.addStudent(student);
-                return null;
-            }, ignored -> {
-                clearRegistrationForm();
-                refreshAllViews();
-                showMessage("Student registered successfully.\n\n" + student.getDisplayInfo(),
-                        "Registration complete",
-                        JOptionPane.INFORMATION_MESSAGE);
-            }, exception -> {
-                if (SkillSwapManager.isDuplicateEmail(exception)) {
-                    showMessage("That email address is already registered. Use a different email.",
-                            "Duplicate email", JOptionPane.WARNING_MESSAGE);
-                } else {
-                    showDatabaseError("Student registration", exception);
-                }
-            });
-        } catch (IllegalArgumentException exception) {
-            showMessage(exception.getMessage(), "Check the form", JOptionPane.WARNING_MESSAGE);
+            manager.registerStudent(
+                    name, email, teach, learn, additional);
+
+            JOptionPane.showMessageDialog(
+                    this, "Student registered successfully.");
+
+            clearForm();
+            refreshStudents();
+            refreshDashboard();
+
+        } catch (SQLException ex) {
+            if (ex.getErrorCode() == 1062) {
+                showError("This email is already registered.");
+            } else {
+                showDatabaseError(ex);
+            }
+        }
+    }
+
+    private void clearForm() {
+
+        nameField.setText("");
+        emailField.setText("");
+        teachCombo.setSelectedIndex(0);
+        learnCombo.setSelectedIndex(1);
+        additionalField.setText("");
+    }
+
+    private void refreshStudents() {
+
+        try {
+            List<SkillStudent> students = manager.getAllStudents();
+
+            studentModel.setRowCount(0);
+
+            for (SkillStudent s : students) {
+                studentModel.addRow(new Object[]{
+                        s.getId(),
+                        s.getName(),
+                        s.getEmail(),
+                        s.getTeachSkill(),
+                        s.getLearnSkill(),
+                        s.getAdditionalSkills()
+                });
+            }
+
+            setStatus("Students loaded: " + students.size());
+
+        } catch (SQLException ex) {
+            showDatabaseError(ex);
         }
     }
 
     private void searchStudents() {
-        try {
-            String skill = selectedSkill(searchSkillBox, "Search skill");
-            runDatabaseTask(() -> manager.searchByTeachingSkill(skill), students -> {
-                fillStudentTable(searchResultsModel, students);
-                if (students.isEmpty()) {
-                    showMessage("No students were found teaching \"" + skill + "\".",
-                            "No results", JOptionPane.INFORMATION_MESSAGE);
-                }
-            }, exception -> showDatabaseError("Teaching-skill search", exception));
-        } catch (IllegalArgumentException exception) {
-            showMessage(exception.getMessage(), "Enter a search skill",
-                    JOptionPane.WARNING_MESSAGE);
-        }
-    }
 
-    private void refreshAllViews() {
-        runDatabaseTask(manager::getAllStudents, students -> {
-            fillStudentTable(allStudentsModel, students);
-            dashboardSummary.setText(
-                    "<html><div style='text-align: center;'>"
-                            + "<b>" + students.size() + "</b> registered student(s)<br><br>"
-                            + "Use the tabs above to register students, search teaching skills, "
-                            + "find reciprocal exchanges, or manage records."
-                            + "</div></html>");
-            refreshMatches();
-        }, exception -> {
-            dashboardSummary.setText("Could not load student records. Check the database settings.");
-            showDatabaseError("Loading student records", exception);
-        });
+        String skill = selectedSkill(searchCombo);
+
+        if (skill.isEmpty()) {
+            showError("Enter or select a skill.");
+            return;
+        }
+
+        try {
+            List<SkillStudent> students =
+                    manager.searchBySkill(skill);
+
+            searchModel.setRowCount(0);
+
+            for (SkillStudent s : students) {
+                searchModel.addRow(new Object[]{
+                        s.getId(),
+                        s.getName(),
+                        s.getEmail(),
+                        s.getTeachSkill(),
+                        s.getLearnSkill()
+                });
+            }
+
+            setStatus("Students found: " + students.size());
+
+        } catch (SQLException ex) {
+            showDatabaseError(ex);
+        }
     }
 
     private void refreshMatches() {
-        matchesModel.setRowCount(0);
-        matchesStatus.setText("Checking the latest student records...");
-        runDatabaseTask(manager::getAllStudents, students -> {
-            List<SkillSwapManager.SkillMatch> matches =
-                    SkillSwapManager.findCompatibleMatches(students);
-            matchesModel.setRowCount(0);
-            for (SkillSwapManager.SkillMatch match : matches) {
-                SkillStudent first = match.first();
-                SkillStudent second = match.second();
-                matchesModel.addRow(new Object[]{
-                        first.getName(), first.getEmail(), first.getTeachingSkill(),
-                        first.getLearningSkill(), second.getName(), second.getEmail()
+
+        try {
+            List<SkillStudent[]> matches = manager.findMatches();
+
+            matchModel.setRowCount(0);
+
+            for (SkillStudent[] pair : matches) {
+
+                SkillStudent first = pair[0];
+                SkillStudent second = pair[1];
+
+                matchModel.addRow(new Object[]{
+                        first.getName(),
+                        first.getTeachSkill(),
+                        first.getLearnSkill(),
+                        second.getName(),
+                        second.getTeachSkill(),
+                        second.getLearnSkill()
                 });
             }
-            if (students.isEmpty()) {
-                matchesStatus.setText(
-                        "No student records found. Register students before looking for exchanges.");
-            } else if (matches.isEmpty()) {
-                matchesStatus.setText(
-                        "No compatible exchanges found. Register students with complementary skills and try again.");
-            } else {
-                matchesStatus.setText("Found " + matches.size() + " compatible exchange(s).");
-            }
-        }, exception -> {
-            matchesStatus.setText("Could not load compatible exchanges.");
-            showDatabaseError("Finding reciprocal exchanges", exception);
-        });
+
+            setStatus("Potential matches: " + matches.size());
+
+        } catch (SQLException ex) {
+            showDatabaseError(ex);
+        }
     }
 
-    private void deleteSelectedStudent() {
-        int selectedRow = allStudentsTable.getSelectedRow();
-        if (selectedRow < 0) {
-            showMessage("Select a student record before deleting.",
-                    "No student selected", JOptionPane.INFORMATION_MESSAGE);
+    private void deleteStudent() {
+
+        String value = deleteIdField.getText().trim();
+
+        if (value.isEmpty()) {
+            showError("Enter the student ID.");
             return;
         }
 
-        int modelRow = allStudentsTable.convertRowIndexToModel(selectedRow);
-        long id = ((Number) allStudentsModel.getValueAt(modelRow, 0)).longValue();
-        String studentName = String.valueOf(allStudentsModel.getValueAt(modelRow, 1));
-        int choice = JOptionPane.showConfirmDialog(
-                this,
-                "Permanently delete the record for " + studentName + "?",
-                "Confirm deletion",
-                JOptionPane.YES_NO_OPTION,
+        try {
+            int id = Integer.parseInt(value);
+
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Delete student with ID " + id + "?",
+                    "Confirm Deletion",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            manager.deleteStudent(id);
+
+            JOptionPane.showMessageDialog(
+                    this, "Student deleted successfully.");
+
+            deleteIdField.setText("");
+
+            refreshStudents();
+            refreshDashboard();
+            refreshMatches();
+
+        } catch (NumberFormatException ex) {
+            showError("Student ID must be a number.");
+        } catch (SQLException ex) {
+            showDatabaseError(ex);
+        }
+    }
+
+    private void refreshDashboard() {
+
+        if (studentCount == null || matchCount == null) {
+            return;
+        }
+
+        try {
+            studentCount.setText(
+                    "Total Students: " + manager.getAllStudents().size());
+
+            matchCount.setText(
+                    "Potential Matches: " + manager.findMatches().size());
+
+        } catch (SQLException ex) {
+            setStatus("Could not load dashboard data.");
+        }
+    }
+
+    private void setStatus(String message) {
+
+        if (statusLabel != null) {
+            statusLabel.setText(message);
+        }
+    }
+
+    private void showError(String message) {
+
+        JOptionPane.showMessageDialog(
+                this, message, "Error",
                 JOptionPane.WARNING_MESSAGE);
-        if (choice != JOptionPane.YES_OPTION) {
-            return;
-        }
-
-        runDatabaseTask(() -> manager.deleteStudent(id), deleted -> {
-            if (deleted) {
-                refreshAllViews();
-                showMessage("Student record deleted.", "Deletion complete",
-                        JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                showMessage("The selected record no longer exists. Refresh and try again.",
-                        "Record not found", JOptionPane.INFORMATION_MESSAGE);
-                refreshAllViews();
-            }
-        }, exception -> showDatabaseError("Deleting student record", exception));
     }
 
-    private <T> void runDatabaseTask(
-            DatabaseTask<T> task,
-            Consumer<T> onSuccess,
-            Consumer<SQLException> onDatabaseError) {
-        new SwingWorker<T, Void>() {
-            @Override
-            protected T doInBackground() throws SQLException {
-                return task.run();
-            }
+    private void showDatabaseError(SQLException ex) {
 
-            @Override
-            protected void done() {
-                try {
-                    onSuccess.accept(get());
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    showMessage("The database operation was interrupted. Please try again.",
-                            "Operation interrupted", JOptionPane.ERROR_MESSAGE);
-                } catch (ExecutionException exception) {
-                    Throwable cause = exception.getCause();
-                    if (cause instanceof SQLException sqlException) {
-                        onDatabaseError.accept(sqlException);
-                    } else {
-                        System.err.println("Unexpected error while running a database task:");
-                        if (cause != null) {
-                            cause.printStackTrace(System.err);
-                        }
-                        String detail = cause == null || cause.getMessage() == null
-                                ? "No additional details are available."
-                                : cause.getMessage();
-                        showMessage("The operation failed unexpectedly.\n\n" + detail,
-                                "Operation error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
-            }
-        }.execute();
-    }
-
-    @FunctionalInterface
-    private interface DatabaseTask<T> {
-        T run() throws SQLException;
-    }
-
-    private static void fillStudentTable(
-            DefaultTableModel model, List<SkillStudent> students) {
-        model.setRowCount(0);
-        for (SkillStudent student : students) {
-            model.addRow(new Object[]{
-                    student.getId(), student.getName(), student.getEmail(),
-                    student.getTeachingSkill(), student.getLearningSkill(),
-                    student.getAdditionalSkills()
-            });
-        }
-    }
-
-    private void clearRegistrationForm() {
-        nameField.setText("");
-        emailField.setText("");
-        teachingSkillBox.setSelectedItem("");
-        learningSkillBox.setSelectedItem("");
-        additionalSkillsField.setText("");
-        nameField.requestFocusInWindow();
-    }
-
-    private void showDatabaseError(String operation, SQLException exception) {
-        System.err.println(operation + " failed. SQLState=" + exception.getSQLState()
-                + ", errorCode=" + exception.getErrorCode());
-        exception.printStackTrace(System.err);
-
-        String message = databaseErrorMessage(exception);
-        String detail = exception.getMessage() == null
-                ? "No additional database error details were provided."
-                : exception.getMessage();
-        showMessage(
-                operation + " failed.\n\n" + message + "\n\n"
-                        + detail
-                        + "\n\nCheck that MySQL Server is running, the schema matches the application, "
-                        + "and the SKILLSWAP_DB_* variables are set.",
-                "Database error",
+        JOptionPane.showMessageDialog(
+                this,
+                "Database operation failed.\n\n"
+                        + ex.getMessage()
+                        + "\n\nCheck MySQL and your password in "
+                        + "DatabaseConnection.java.",
+                "Database Error",
                 JOptionPane.ERROR_MESSAGE);
-    }
 
-    private static String databaseErrorMessage(SQLException exception) {
-        String sqlState = exception.getSQLState();
-        int errorCode = exception.getErrorCode();
-
-        if (errorCode == 1045 || "28000".equals(sqlState)) {
-            return "MySQL rejected the login. Check SKILLSWAP_DB_USER and "
-                    + "SKILLSWAP_DB_PASSWORD; the password is not displayed here.";
-        }
-        if (errorCode == 1049) {
-            return "The skill_swap_db database was not found. Confirm the database name in MySQL.";
-        }
-        if (errorCode == 1054 || errorCode == 1146
-                || "42S02".equals(sqlState) || "42S22".equals(sqlState)) {
-            return "A required table or column is missing. Compare students with database/schema.sql.";
-        }
-        if (sqlState != null && sqlState.startsWith("08")) {
-            return "MySQL could not be reached. Check that the MySQL80 service is running "
-                    + "and listening on localhost:3306.";
-        }
-        return "Check the MySQL service, database schema, and application database account.";
-    }
-
-    private void showMessage(String message, String title, int messageType) {
-        JOptionPane.showMessageDialog(this, message, title, messageType);
-    }
-
-    private static String selectedSkill(JComboBox<String> skillBox, String label) {
-        Object value = skillBox.isEditable()
-                ? skillBox.getEditor().getItem()
-                : skillBox.getSelectedItem();
-        if (value == null || value.toString().isBlank()) {
-            throw new IllegalArgumentException(label + " cannot be empty.");
-        }
-        return value.toString().trim();
-    }
-
-    private static JComboBox<String> createSkillBox() {
-        JComboBox<String> skillBox =
-                new JComboBox<>(SkillStudent.getPredefinedSkills().toArray(String[]::new));
-        skillBox.setEditable(true);
-        skillBox.setSelectedItem("");
-        skillBox.setPreferredSize(new Dimension(260, 28));
-        return skillBox;
-    }
-
-    private static void addFormRow(
-            JPanel panel, GridBagConstraints constraints, int row,
-            String labelText, java.awt.Component field) {
-        constraints.gridy = row;
-        constraints.gridwidth = 1;
-        constraints.weightx = 0;
-        constraints.gridx = 0;
-        panel.add(new JLabel(labelText), constraints);
-        constraints.gridx = 1;
-        constraints.weightx = 1;
-        panel.add(field, constraints);
-    }
-
-    private static JTable createTable(DefaultTableModel model) {
-        JTable table = new JTable(model);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setAutoCreateRowSorter(true);
-        table.setFillsViewportHeight(true);
-        return table;
-    }
-
-    private static DefaultTableModel createTableModel(String[] columns) {
-        return new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
+        setStatus("Database operation failed.");
     }
 }
